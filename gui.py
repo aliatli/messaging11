@@ -1,10 +1,10 @@
+import datetime
 import struct
 import threading
+import time
+from datetime import timezone
 from tkinter import *
-from tkinter import font
-from tkinter import ttk
-
-# GUI class for the chat
+import json
 
 FORMAT = 'utf-8'
 BATCH_SIZE = 1000
@@ -21,15 +21,12 @@ class GUI:
         # chat window which is currently hidden
         self.Window = Tk()
         self.Window.withdraw()
-        self.goAhead(self.name)
-        self.Window.mainloop()
 
     def goAhead(self, name):
         self.layout(name)
+        self.Window.mainloop()
 
-        # the thread to receive messages
-        rcv = threading.Thread(target=self.receive)
-        rcv.start()
+
 
     # The main layout of the chat
     def layout(self, name):
@@ -132,72 +129,60 @@ class GUI:
 
         self.message_box.config(state=DISABLED)
 
-    # function to basically start the thread for sending messages
+    # add received dictionary object to message box
+    def add_received_message(self, message):
+        if None is message:
+            return
+        else:
+            # insert messages to text box
+            self.message_box.config(state=NORMAL)
+            message_body = message['BODY']
+            message_sender = message['SENDER']
+            epoch_time = message['EPOCH_TIME']
+            utc_time = datetime.fromtimestamp(epoch_time, timezone.utc)
+            self.message_box.insert(END, message_sender + " @ " + utc_time)
+
+            # in case the text is large the gui freezes, so show just beginning and end
+            if len(message_body) // BATCH_SIZE > 2:
+                # insert to beginning and end
+                self.message_box.insert(END, message_body[0:BATCH_SIZE])
+                self.message_box.insert(END, "...\n\n")
+                self.message_box.insert(END, message_body[-BATCH_SIZE:])
+                self.message_box.insert(END, "\n\n")
+            else:
+                self.message_box.insert(END, message_body + "\n\n")
+
+            self.message_box.config(state=DISABLED)
+            self.message_box.see(END)
+
+    # convert text message to json with meta-data
+    def convert_to_json(self, message, type):
+        # python native representation
+        dictionary_representation = {'TYPE': type,
+                                     'EPOCH_TIME': int(time.time()),
+                                     'SENDER': self.client.getsockname(),
+                                     'RECEIVER': self.client.getpeername(),
+                                     'BODY': message}
+        # convert it to json object
+        return json.dump(dictionary_representation, ensure_ascii=False).encode(FORMAT)
+
+    # function to dispatch a sender
     def sendButton(self, msg):
         self.message_box.config(state=DISABLED)
-        self.msg = msg
+        self.msg = self.convert_to_json(msg)
         self.entryMsg.delete(0, END)
-        snd = threading.Thread(target=self.sendMessage)
-        snd.start()
 
-    def receive_n(self, sock, n):
-        # Helper function to recv n bytes or return None if EOF is hit
-        data = bytearray()
-        while len(data) < n:
-            packet = sock.recv(n - len(data))
-            if not packet:
-                return None
-            data.extend(packet)
-        return data
+        sender_thread = threading.Thread(target=self.sendMessage)
+        # to not worry about joining
+        sender_thread.setDaemon(True)
+        sender_thread.start()
 
-    def recv_msg(self, sock):
-        # Read message length and unpack it into an integer
-        raw_msglen = self.receive_n(sock, 4)
-        if not raw_msglen:
-            return None
-        msglen = struct.unpack('>I', raw_msglen)[0]
-        if 0 == msglen:
-            return None
-        # Read the message data
-        return self.receive_n(sock, msglen)
 
-    # function to receive messages
-    def receive(self):
-        while True:
-            try:
-                message = self.recv_msg(self.client).decode(FORMAT)
-
-                if None is message:
-                    continue
-                else:
-                    # insert messages to text box
-                    self.message_box.config(state=NORMAL)
-
-                    # in case the text is large the gui freezes,
-                    # show just beginning and end
-                    if len(message) // BATCH_SIZE > 2:
-                        # # insert beginning end and
-                        self.message_box.insert(END, message[0:BATCH_SIZE])
-                        self.message_box.insert(END, "...\n\n")
-                        self.message_box.insert(END, message[-BATCH_SIZE:])
-                        self.message_box.insert(END, "\n\n")
-                    else:
-                        self.message_box.insert(END, message + "\n\n")
-
-                    self.message_box.config(state=DISABLED)
-                    self.message_box.see(END)
-            except Exception as e:
-                # an error will be printed on the command line or console if there's an error
-                print(e)
-                print("exception occured, closing connection...")
-                self.client.close()
-                break
-
-    # function to send messages
+    # function that does sending
     def sendMessage(self):
         self.message_box.config(state=DISABLED)
         while True:
-            message = bytes(f"{self.addr}: {self.msg}", FORMAT)
+            message = bytes(f"{self.msg}", FORMAT)
             # Prefix each message with a 4-byte length (network byte order)
             message = struct.pack('>I', len(message)) + message
             self.client.send(message)

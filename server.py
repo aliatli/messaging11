@@ -6,6 +6,8 @@ import threading
 
 # Choose a port that is free
 from gui import GUI
+from processor import Processor
+from receiver import Receiver
 
 PORT = 5050
 
@@ -42,14 +44,32 @@ def start_chat():
         conn, addr = server.accept()
 
         # Start the handling thread
-        thread = threading.Thread(target=handle,
-                                  args=(conn, addr))
+        # thread = threading.Thread(target=handle,
+        #                           args=(conn, addr))
+        thread = threading.Thread(target=run)
         thread.start()
 
 
 def handle(conn, addr):
     g = GUI("server", conn, conn.getsockname())
 
+
+def run():
+    # create a GUI class object
+    gui = GUI("server", server, server.getsockname())
+    # create event loop processor
+    processor = Processor(gui)
+    # create_receiver
+    receiver = Receiver(processor, server)
+
+    processor_thread = threading.Thread(target=processor.start())
+    processor_thread.setDaemon(True)
+    processor_thread.start()
+    receiver_thread = threading.Thread(target=receiver.receive())
+    receiver_thread.setDaemon(True)
+    receiver_thread.start()
+
+    gui.goAhead("client")
 
 # call the method to
 # begin the communication
