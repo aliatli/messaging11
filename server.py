@@ -48,8 +48,7 @@ def start_chat():
 
 
 def handle(conn, addr):
-    print(addr)
-    g = GUI("server", conn)
+    g = GUI("server", conn, conn.getsockname())
 
 
 # call the method to

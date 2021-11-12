@@ -17,5 +17,6 @@ FORMAT = "utf-8"
 client = socket.socket(socket.AF_INET,
                        socket.SOCK_STREAM)
 client.connect(ADDRESS)
+print(client)
 # create a GUI class object
-g = GUI("client", client)
+g = GUI("client", client, client.getsockname())
