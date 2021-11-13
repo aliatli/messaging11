@@ -44,14 +44,14 @@ class GUI:
         self.Window.configure(width=470,
                               height=550,
                               bg=self.bg)
-        self.labelHead = Label(self.Window,
-                               bg=self.bg,
-                               fg=self.fg,
-                               text=self.name,
-                               font="Helvetica 13 bold",
-                               pady=5)
+        self.label_head = Label(self.Window,
+                                bg=self.bg,
+                                fg=self.fg,
+                                text=self.name,
+                                font="Helvetica 13 bold",
+                                pady=5)
 
-        self.labelHead.place(relwidth=1)
+        self.label_head.place(relwidth=1)
         self.line = Label(self.Window,
                           width=450,
                           bg="#ABB2B9")
@@ -73,51 +73,51 @@ class GUI:
                                relwidth=1,
                                rely=0.08)
 
-        self.labelBottom = Label(self.Window,
-                                 bg="#ABB2B9",
-                                 height=80)
+        self.label_bottom = Label(self.Window,
+                                  bg="#ABB2B9",
+                                  height=80)
 
-        self.labelBottom.place(relwidth=1,
-                               rely=0.825)
+        self.label_bottom.place(relwidth=1,
+                                rely=0.825)
 
-        self.entryMsg = Entry(self.labelBottom,
-                              bg=self.bg,
-                              fg=self.fg,
-                              font="Helvetica 13")
+        self.message_entry_box = Entry(self.label_bottom,
+                                       bg=self.bg,
+                                       fg=self.fg,
+                                       font="Helvetica 13")
 
         # place the given widget
         # into the gui window
-        self.entryMsg.place(relwidth=0.50,
-                            relheight=0.06,
-                            rely=0.008,
-                            relx=0.011)
+        self.message_entry_box.place(relwidth=0.50,
+                                     relheight=0.06,
+                                     rely=0.008,
+                                     relx=0.011)
 
-        self.entryMsg.focus()
-
-        # create a Send Button
-        self.buttonMsg = Button(self.labelBottom,
-                                text="Send",
-                                font="Helvetica 10 bold",
-                                width=20,
-                                bg="#ABB2B9",
-                                command=lambda: self.sendButton(self.entryMsg.get()))
+        self.message_entry_box.focus()
 
         # create a Send Button
-        self.buttonSearch = Button(self.labelBottom,
-                                   text="Search",
-                                   font="Helvetica 10 bold",
-                                   width=20,
-                                   bg="#ABB2B9",
-                                   command=lambda: self.sendButton(self.entryMsg.get()))
+        self.send_message_button = Button(self.label_bottom,
+                                          text="Send",
+                                          font="Helvetica 10 bold",
+                                          width=20,
+                                          bg="#ABB2B9",
+                                          command=lambda: self.on_send_clicked(self.message_entry_box.get()))
 
-        self.buttonMsg.place(relx=0.505,
-                             rely=0.008,
-                             relheight=0.06,
-                             relwidth=0.245)
-        self.buttonSearch.place(relx=0.75,
-                                rely=0.008,
-                                relheight=0.06,
-                                relwidth=0.245)
+        # create a Send Button
+        self.search_button = Button(self.label_bottom,
+                                    text="Search",
+                                    font="Helvetica 10 bold",
+                                    width=20,
+                                    bg="#ABB2B9",
+                                    command=lambda: self.on_search_clicked(self.message_entry_box.get()))
+
+        self.send_message_button.place(relx=0.505,
+                                       rely=0.008,
+                                       relheight=0.06,
+                                       relwidth=0.245)
+        self.search_button.place(relx=0.75,
+                                 rely=0.008,
+                                 relheight=0.06,
+                                 relwidth=0.245)
 
         self.message_box.config(cursor="arrow")
 
@@ -171,22 +171,67 @@ class GUI:
         return json.dumps(dictionary_representation, ensure_ascii=False)
 
     # function to dispatch a sender
-    def sendButton(self, msg):
+    def on_send_clicked(self, msg):
         self.message_box.config(state=DISABLED)
-        self.msg = self.convert_to_json(msg, 'ChatMessage')
-        self.entryMsg.delete(0, END)
+        json_msg = self.convert_to_json(msg, 'ChatMessage')
+        self.message_entry_box.delete(0, END)
 
-        sender_thread = threading.Thread(target=self.sendMessage)
+        sender_thread = threading.Thread(target=self.send_message, args=(json_msg,))
         # to not worry about joining
         sender_thread.setDaemon(True)
         sender_thread.start()
 
     # function that does sending
-    def sendMessage(self):
+    def send_message(self, json_msg):
         self.message_box.config(state=DISABLED)
         while True:
-            message = bytes(f"{self.msg}", FORMAT)
+            message = bytes(f"{json_msg}", FORMAT)
             # Prefix each message with a 4-byte length (network byte order)
             message = struct.pack('>I', len(message)) + message
             self.socket.send(message)
             break
+
+    # check if query string is valid json
+    def check_valid_json(self, msg):
+        try:
+            json.loads(msg)
+        except ValueError as e:
+            print(e.args)
+            return False
+        return True
+
+    # check if json is a valid query
+    # example {"HISTORY_DEPTH":"10", "DIRECTION":"BOTH", "SEARCH_STRING":"a"}
+    def check_valid_query(self, msg):
+        dict_obj = json.loads(msg)
+        # it must have these fields.
+        if dict_obj.get('HISTORY_DEPTH') is None \
+                or dict_obj.get('SEARCH_STRING') is None \
+                or dict_obj.get('DIRECTION') is None \
+                or len(dict_obj.keys()) != 3:
+            return False
+        # history depth can be non-negative integer or 'ALL'
+        if not dict_obj['HISTORY_DEPTH'].isdigit() and not dict_obj['HISTORY_DEPTH'] == 'ALL':
+            return False
+        if dict_obj['HISTORY_DEPTH'].isdigit() and int(dict_obj['HISTORY_DEPTH']) == 0:
+            return False
+        # direction can have up, down and both values only
+        if dict_obj['DIRECTION'] != 'UP' and dict_obj['DIRECTION'] != 'DOWN' and dict_obj['DIRECTION'] != 'BOTH':
+            return False
+
+        # search_string can have any value, empty string means to not apply this filter
+        return True
+
+    # search button handler
+    def on_search_clicked(self, msg):
+        self.message_box.config(state=DISABLED)
+        msg = msg.upper()
+        # if a valid json and a valid query
+        if self.check_valid_json(msg) and self.check_valid_query(msg):
+            # convert it to json
+            msg = self.convert_to_json(msg, 'QueryMessage')
+        else:
+            return
+
+        # send json message
+        self.send_message(msg)

@@ -1,7 +1,7 @@
 import queue
 import threading
 from enum import Enum
-
+from persistency_layer import Persistency
 
 # denotes message types
 class MessageType(Enum):
@@ -19,6 +19,7 @@ class Processor:
         self.is_running = True
         self.thread = threading.Thread(target=self.start)
         self.thread.start()
+        self.persistency = Persistency()
 
     # start waiting for queue to deplete
     def stop_processor(self):
@@ -45,9 +46,12 @@ class Processor:
         message = self.message_queue.get()
         message_type = self.get_message_type(message)
 
-        # python 3.10 introduces match-case but what if you don't have it
+        # python 3.10 introduces match-case but this is 3.8.2
         if message_type is MessageType.ChatMessage:
             self.gui.add_received_message(message)
+            self.persistency.save_message(message)
+        elif message_type is MessageType.QueryMessage:
+            print(message)
         else:
             pass
 
@@ -57,5 +61,5 @@ class Processor:
             self.process_message()
 
         # stop called and no more jobs
-        print("Stop requested, finished all events.")
+        print("Halt is requested, finished all events.")
         self.message_queue.join()
