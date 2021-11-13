@@ -10,30 +10,18 @@ import sys
 def create_connection(server_address):
     client = socket.socket(socket.AF_INET,
                            socket.SOCK_STREAM)
-    client.connect(server_address)
+    client.connect((server_address))
     return client
+
 
 # create components, start threads
 def run(server_ip, server_port):
     client = create_connection((server_ip, server_port))
-    # create a GUI class object
-    gui = GUI("client", client, client.getsockname())
-    # create event loop processor
-    processor = Processor(gui)
-    # create_receiver
-    receiver = Receiver(processor, client)
-
-    processor_thread = threading.Thread(target=processor.start())
-    processor_thread.setDaemon(True)
-    processor_thread.start()
-    receiver_thread = threading.Thread(target=receiver.receive())
-    receiver_thread.setDaemon(True)
-    receiver_thread.start()
-
-    gui.goAhead("client")
+    # create a GUI class object, which bears the application loop
+    gui = GUI("client", client)
 
 
 if __name__ == "__main__":
     server_ip = sys.argv[1]
-    server_port = sys.argv[2]
+    server_port = int(sys.argv[2])
     run(server_ip, server_port)

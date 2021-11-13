@@ -46,30 +46,18 @@ def start_chat():
         # Start the handling thread
         # thread = threading.Thread(target=handle,
         #                           args=(conn, addr))
-        thread = threading.Thread(target=run)
+        thread = threading.Thread(target=run, args=(conn,))
         thread.start()
 
 
 def handle(conn, addr):
-    g = GUI("server", conn, conn.getsockname())
+    g = GUI("server", conn)
 
 
-def run():
+def run(conn):
     # create a GUI class object
-    gui = GUI("server", server, server.getsockname())
-    # create event loop processor
-    processor = Processor(gui)
-    # create_receiver
-    receiver = Receiver(processor, server)
+    gui = GUI("server", conn)
 
-    processor_thread = threading.Thread(target=processor.start())
-    processor_thread.setDaemon(True)
-    processor_thread.start()
-    receiver_thread = threading.Thread(target=receiver.receive())
-    receiver_thread.setDaemon(True)
-    receiver_thread.start()
-
-    gui.goAhead("client")
 
 # call the method to
 # begin the communication

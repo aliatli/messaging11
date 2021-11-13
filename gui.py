@@ -6,27 +6,31 @@ from datetime import timezone
 from tkinter import *
 import json
 
+from processor import Processor
+from receiver import Receiver
+
 FORMAT = 'utf-8'
 BATCH_SIZE = 1000
 
+
 class GUI:
     # constructor method
-    def __init__(self, name, client, addr):
+    def __init__(self, name, app_socket):
         self.bg = "#000000"
         self.fg = "#EAECEE"
         self.name = name
-        self.client = client
-        self.addr = addr
+        self.socket = app_socket
 
         # chat window which is currently hidden
         self.Window = Tk()
         self.Window.withdraw()
+        self.processor = Processor(self)
+        self.receiver = Receiver(self.processor, self.socket)
+        self.start_loop(self.name)
 
-    def goAhead(self, name):
+    def start_loop(self, name):
         self.layout(name)
         self.Window.mainloop()
-
-
 
     # The main layout of the chat
     def layout(self, name):
@@ -100,20 +104,20 @@ class GUI:
 
         # create a Send Button
         self.buttonSearch = Button(self.labelBottom,
-                                text="Search",
-                                font="Helvetica 10 bold",
-                                width=20,
-                                bg="#ABB2B9",
-                                command=lambda: self.sendButton(self.entryMsg.get()))
+                                   text="Search",
+                                   font="Helvetica 10 bold",
+                                   width=20,
+                                   bg="#ABB2B9",
+                                   command=lambda: self.sendButton(self.entryMsg.get()))
 
         self.buttonMsg.place(relx=0.505,
                              rely=0.008,
                              relheight=0.06,
                              relwidth=0.245)
         self.buttonSearch.place(relx=0.75,
-                             rely=0.008,
-                             relheight=0.06,
-                             relwidth=0.245)
+                                rely=0.008,
+                                relheight=0.06,
+                                relwidth=0.245)
 
         self.message_box.config(cursor="arrow")
 
@@ -139,8 +143,8 @@ class GUI:
             message_body = message['BODY']
             message_sender = message['SENDER']
             epoch_time = message['EPOCH_TIME']
-            utc_time = datetime.fromtimestamp(epoch_time, timezone.utc)
-            self.message_box.insert(END, message_sender + " @ " + utc_time)
+            gmt_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(epoch_time))
+            self.message_box.insert(END, str(message_sender) + " @ " + gmt_time + ":\n")
 
             # in case the text is large the gui freezes, so show just beginning and end
             if len(message_body) // BATCH_SIZE > 2:
@@ -160,23 +164,22 @@ class GUI:
         # python native representation
         dictionary_representation = {'TYPE': type,
                                      'EPOCH_TIME': int(time.time()),
-                                     'SENDER': self.client.getsockname(),
-                                     'RECEIVER': self.client.getpeername(),
+                                     'SENDER': self.socket.getsockname(),
+                                     'RECEIVER': self.socket.getpeername(),
                                      'BODY': message}
         # convert it to json object
-        return json.dump(dictionary_representation, ensure_ascii=False).encode(FORMAT)
+        return json.dumps(dictionary_representation, ensure_ascii=False)
 
     # function to dispatch a sender
     def sendButton(self, msg):
         self.message_box.config(state=DISABLED)
-        self.msg = self.convert_to_json(msg)
+        self.msg = self.convert_to_json(msg, 'ChatMessage')
         self.entryMsg.delete(0, END)
 
         sender_thread = threading.Thread(target=self.sendMessage)
         # to not worry about joining
         sender_thread.setDaemon(True)
         sender_thread.start()
-
 
     # function that does sending
     def sendMessage(self):
@@ -185,5 +188,5 @@ class GUI:
             message = bytes(f"{self.msg}", FORMAT)
             # Prefix each message with a 4-byte length (network byte order)
             message = struct.pack('>I', len(message)) + message
-            self.client.send(message)
+            self.socket.send(message)
             break

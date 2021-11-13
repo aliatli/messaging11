@@ -4,9 +4,9 @@ import threading
 
 
 class Receiver:
-    def __init__(self, processor, client):
+    def __init__(self, processor, app_socket):
         self.processor = processor
-        self.client = client
+        self.socket = app_socket
         self.encode_format = 'UTF-8'
         # the thread to receive messages
         rcv = threading.Thread(target=self.receive)
@@ -37,13 +37,13 @@ class Receiver:
     def receive(self):
         while True:
             try:
-                message = self.recv_msg(self.client).decode(self.encode_format)
+                message = self.recv_msg(self.socket).decode(self.encode_format)
                 message = json.loads(message)
                 self.processor.push_back(message)
 
             except Exception as e:
                 # an error will be printed on the command line or console if there's an error
-                print(e)
+                print(e.args)
                 print("exception occured, closing connection...")
-                self.client.close()
+                self.socket.close()
                 break

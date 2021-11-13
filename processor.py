@@ -1,4 +1,5 @@
 import queue
+import threading
 from enum import Enum
 
 
@@ -16,6 +17,8 @@ class Processor:
         # multi producer multi consumer queue
         self.message_queue = queue.Queue(maxsize=100)
         self.is_running = True
+        self.thread = threading.Thread(target=self.start)
+        self.thread.start()
 
     # start waiting for queue to deplete
     def stop_processor(self):
@@ -44,13 +47,13 @@ class Processor:
 
         # python 3.10 introduces match-case but what if you don't have it
         if message_type is MessageType.ChatMessage:
-            self.gui.add_received_message(message['BODY'])
+            self.gui.add_received_message(message)
         else:
             pass
 
     # start processing message queue elements
     def start(self):
-        while self.is_running() or not self.message_queue.empty():
+        while self.is_running or not self.message_queue.empty():
             self.process_message()
 
         # stop called and no more jobs
