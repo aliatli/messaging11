@@ -1,6 +1,7 @@
 import socket
-from gui import GUI, ClientGUI
 import sys
+
+from gui import ClientGUI
 
 
 # Create a new client socket and connect to the server

@@ -1,12 +1,10 @@
-import datetime
 import struct
 import threading
 import time
-from datetime import timezone
 from tkinter import *
 import json
 
-from processor import Processor, ClientProcessor, ServerProcessor
+from processor import ClientProcessor, ServerProcessor
 from receiver import Receiver
 
 FORMAT = 'utf-8'
@@ -82,7 +80,7 @@ class GUI:
         self.message_entry_box = Entry(self.label_bottom,
                                        bg=self.bg,
                                        fg=self.fg,
-                                       font="Helvetica 13")
+                                       font="Helvetica 13", insertbackground=self.fg)
 
         # place the given widget
         # into the gui window
@@ -158,16 +156,20 @@ class GUI:
             self.message_box.config(state=DISABLED)
             self.message_box.see(END)
 
-    # convert text message to json with meta-data
-    def convert_to_json(self, message, type):
+    # convert text message to dict with meta-data
+    def convert_to_dict(self, message, type):
         # python native representation
         dictionary_representation = {'TYPE': type,
                                      'EPOCH_TIME': int(time.time()),
                                      'SENDER': self.socket.getsockname(),
                                      'RECEIVER': self.socket.getpeername(),
                                      'BODY': message}
+        return dictionary_representation
+
+    # convert text message to json with meta-data
+    def convert_to_json(self, message, type):
         # convert it to json object
-        return json.dumps(dictionary_representation, ensure_ascii=False)
+        return json.dumps(self.convert_to_dict(message, type), ensure_ascii=False)
 
     # check if query string is valid json
     def check_valid_json(self, msg):
@@ -204,8 +206,9 @@ class GUI:
         return True
 
     # show search result on a different window
-    def pop_search_result(self, message):
-        print(message)
+    def pop_search_result(self, results):
+        for r in results:
+            print(str(r['BODY']))
 
     # search button handler
     def on_search_clicked(self, msg):
@@ -217,7 +220,14 @@ class GUI:
 
     # function that does sending
     def send_message(self, json_msg):
-        pass
+        self.message_box.config(state=DISABLED)
+        while True:
+            # encode json with utf-8
+            message = bytes(f"{json_msg}", FORMAT)
+            # Prefix each message with a 4-byte length (network byte order)
+            message = struct.pack('>I', len(message)) + message
+            self.socket.send(message)
+            break
 
 # client gui
 class ClientGUI(GUI):
@@ -255,16 +265,6 @@ class ClientGUI(GUI):
         sender_thread.setDaemon(True)
         sender_thread.start()
 
-    # function that does sending
-    def send_message(self, json_msg):
-        self.message_box.config(state=DISABLED)
-        while True:
-            message = bytes(f"{json_msg}", FORMAT)
-            # Prefix each message with a 4-byte length (network byte order)
-            message = struct.pack('>I', len(message)) + message
-            self.socket.send(message)
-            break
-
 
 # client gui
 class ServerGUI(GUI):
@@ -282,7 +282,7 @@ class ServerGUI(GUI):
         # if a valid json and a valid query
         if self.check_valid_json(msg) and self.check_valid_query(msg):
             # convert it to json
-            msg = self.convert_to_json(msg, 'ServerQueryMessage')
+            msg = self.convert_to_dict(msg, 'ServerQueryMessage')
         else:
             print("Invalid Search String Crafted!")
             return
@@ -296,22 +296,12 @@ class ServerGUI(GUI):
         json_msg = []
         # put sender name info to the message
         json_msg = self.convert_to_json(msg, 'ServerMessage')
-
+        dict_msg = self.convert_to_dict(msg, 'ServerMessage')
+        # delegate database ops to processor
+        self.processor.push_back(dict_msg)
         self.message_entry_box.delete(0, END)
 
         sender_thread = threading.Thread(target=self.send_message, args=(json_msg,))
         # to not worry about joining
         sender_thread.setDaemon(True)
         sender_thread.start()
-
-    # function that does sending
-    def send_message(self, json_msg):
-        self.message_box.config(state=DISABLED)
-        while True:
-            # delegate database ops to processor
-            self.processor.push_back(json_msg)
-            message = bytes(f"{json_msg}", FORMAT)
-            # Prefix each message with a 4-byte length (network byte order)
-            message = struct.pack('>I', len(message)) + message
-            self.socket.send(message)
-            break

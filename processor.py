@@ -101,5 +101,10 @@ class ServerProcessor(Processor):
         elif message_type is MessageType.ServerMessage:
             # save own message to db
             self.persistency.save_message(message)
+
+        elif message_type is MessageType.ServerQueryMessage:
+            # ask persistency to execute query
+            result = self.persistency.filter_message(message)
+            self.gui.pop_search_result(result)
         else:
             pass
