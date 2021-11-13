@@ -1,13 +1,17 @@
 import queue
 import threading
 from enum import Enum
+
 from persistency_layer import Persistency
+
 
 # denotes message types
 class MessageType(Enum):
-    ChatMessage = 1
-    QueryMessage = 2
-    QueryResultMessage = 3
+    ClientMessage = 1
+    ServerMessage = 2
+    ClientQueryMessage = 3
+    ServerQueryMessage = 4
+    QueryResult = 5
 
 
 # class representing the event loop
@@ -19,7 +23,6 @@ class Processor:
         self.is_running = True
         self.thread = threading.Thread(target=self.start)
         self.thread.start()
-        self.persistency = Persistency()
 
     # start waiting for queue to deplete
     def stop_processor(self):
@@ -32,28 +35,22 @@ class Processor:
 
     # get type of message
     def get_message_type(self, message):
-        if message['TYPE'] == 'ChatMessage':
-            return MessageType.ChatMessage
-        elif message['TYPE'] == 'QueryMessage':
-            return MessageType.QueryMessage
-        elif message['TYPE'] == 'QueryResultMessage':
-            return MessageType.QueryResultMessage
+        if message['TYPE'] == 'ClientMessage':
+            return MessageType.ClientMessage
+        elif message['TYPE'] == 'ServerMessage':
+            return MessageType.ServerMessage
+        elif message['TYPE'] == 'ClientQueryMessage':
+            return MessageType.ClientQueryMessage
+        elif message['TYPE'] == 'ServerQueryMessage':
+            return MessageType.ServerQueryMessage
+        elif message['TYPE'] == 'QueryResult':
+            return MessageType.QueryResult
         else:
             return None
 
     # execute one iteration
     def process_message(self):
-        message = self.message_queue.get()
-        message_type = self.get_message_type(message)
-
-        # python 3.10 introduces match-case but this is 3.8.2
-        if message_type is MessageType.ChatMessage:
-            self.gui.add_received_message(message)
-            self.persistency.save_message(message)
-        elif message_type is MessageType.QueryMessage:
-            print(message)
-        else:
-            pass
+        pass
 
     # start processing message queue elements
     def start(self):
@@ -63,3 +60,46 @@ class Processor:
         # stop called and no more jobs
         print("Halt is requested, finished all events.")
         self.message_queue.join()
+
+
+# client processor
+class ClientProcessor(Processor):
+
+    def __init__(self, gui):
+        super().__init__(gui)
+
+    # execute one iteration for client
+    def process_message(self):
+        message = self.message_queue.get()
+        message_type = self.get_message_type(message)
+
+        if message_type is MessageType.ServerMessage:
+            # this is received only by the client
+            self.gui.add_received_message(message)
+        elif message_type is MessageType.QueryResult:
+            self.gui.pop_search_result(message)
+        else:
+            pass
+
+
+# server processer
+class ServerProcessor(Processor):
+    def __init__(self, gui):
+        super().__init__(gui)
+        self.persistency = Persistency()
+
+    def process_message(self):
+        message = self.message_queue.get()
+        message_type = self.get_message_type(message)
+
+        if message_type is MessageType.ClientMessage:
+            # show on message box
+            self.gui.add_received_message(message)
+            # save it to the db
+            self.persistency.save_message(message)
+
+        elif message_type is MessageType.ServerMessage:
+            # save own message to db
+            self.persistency.save_message(message)
+        else:
+            pass

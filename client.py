@@ -1,8 +1,5 @@
 import socket
-import threading
-from gui import GUI
-from processor import Processor
-from receiver import Receiver
+from gui import GUI, ClientGUI
 import sys
 
 
@@ -18,7 +15,7 @@ def create_connection(server_address):
 def run(server_ip, server_port):
     client = create_connection((server_ip, server_port))
     # create a GUI class object, which bears the application loop
-    gui = GUI("client", client)
+    gui = ClientGUI(client)
 
 
 if __name__ == "__main__":

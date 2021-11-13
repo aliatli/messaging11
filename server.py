@@ -5,7 +5,7 @@ import socket
 import threading
 
 # Choose a port that is free
-from gui import GUI
+from gui import GUI, ServerGUI
 from processor import Processor
 from receiver import Receiver
 
@@ -50,13 +50,9 @@ def start_chat():
         thread.start()
 
 
-def handle(conn, addr):
-    g = GUI("server", conn)
-
-
 def run(conn):
     # create a GUI class object
-    gui = GUI("server", conn)
+    gui = ServerGUI(conn)
 
 
 # call the method to

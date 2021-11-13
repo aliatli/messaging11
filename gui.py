@@ -6,7 +6,7 @@ from datetime import timezone
 from tkinter import *
 import json
 
-from processor import Processor
+from processor import Processor, ClientProcessor, ServerProcessor
 from receiver import Receiver
 
 FORMAT = 'utf-8'
@@ -24,10 +24,9 @@ class GUI:
         # chat window which is currently hidden
         self.Window = Tk()
         self.Window.withdraw()
-        self.processor = Processor(self)
-        self.receiver = Receiver(self.processor, self.socket)
         self.start_loop(self.name)
 
+    # this needs to be the last call from main, otherwise wont show
     def start_loop(self, name):
         self.layout(name)
         self.Window.mainloop()
@@ -170,10 +169,85 @@ class GUI:
         # convert it to json object
         return json.dumps(dictionary_representation, ensure_ascii=False)
 
+    # check if query string is valid json
+    def check_valid_json(self, msg):
+        try:
+            json.loads(msg)
+        except ValueError as e:
+            print(e.args)
+            return False
+        return True
+
+    # check if json is a valid query
+    # example {"HISTORY_DEPTH":"10", "DIRECTION":"BOTH", "SEARCH_STRING":"a"}
+    def check_valid_query(self, msg):
+        dict_obj = json.loads(msg)
+
+        # it must have these fields.
+        if dict_obj.get('HISTORY_DEPTH') is None \
+                or dict_obj.get('SEARCH_STRING') is None \
+                or dict_obj.get('DIRECTION') is None \
+                or len(dict_obj.keys()) != 3:
+            return False
+
+        # history depth can be non-negative integer or 'ALL'
+        if not dict_obj['HISTORY_DEPTH'].isdigit() and not dict_obj['HISTORY_DEPTH'] == 'ALL':
+            return False
+        if dict_obj['HISTORY_DEPTH'].isdigit() and int(dict_obj['HISTORY_DEPTH']) == 0:
+            return False
+
+        # direction can have up, down and both values only
+        if dict_obj['DIRECTION'] != 'UP' and dict_obj['DIRECTION'] != 'DOWN' and dict_obj['DIRECTION'] != 'BOTH':
+            return False
+
+        # search_string can have any value, empty string means to not apply this filter
+        return True
+
+    # show search result on a different window
+    def pop_search_result(self, message):
+        print(message)
+
+    # search button handler
+    def on_search_clicked(self, msg):
+        pass
+
+    # function to dispatch a sender
+    def on_send_clicked(self, msg):
+        pass
+
+    # function that does sending
+    def send_message(self, json_msg):
+        pass
+
+# client gui
+class ClientGUI(GUI):
+
+    def __init__(self, app_socket):
+        self.processor = ClientProcessor(self)
+        self.receiver = Receiver(self.processor, app_socket)
+        super().__init__("client", app_socket)
+
+    # search button handler
+    def on_search_clicked(self, msg):
+        self.message_box.config(state=DISABLED)
+        msg = msg.upper()
+        # if a valid json and a valid query
+        if self.check_valid_json(msg) and self.check_valid_query(msg):
+            # convert it to json
+            msg = self.convert_to_json(msg, 'ClientQueryMessage')
+        else:
+            return
+
+        # send json message
+        self.send_message(msg)
+
     # function to dispatch a sender
     def on_send_clicked(self, msg):
         self.message_box.config(state=DISABLED)
-        json_msg = self.convert_to_json(msg, 'ChatMessage')
+        # put sender name info to the message
+        json_msg = self.convert_to_json(msg, 'ClientMessage')
+
+        # clear the text entry
         self.message_entry_box.delete(0, END)
 
         sender_thread = threading.Thread(target=self.send_message, args=(json_msg,))
@@ -191,36 +265,15 @@ class GUI:
             self.socket.send(message)
             break
 
-    # check if query string is valid json
-    def check_valid_json(self, msg):
-        try:
-            json.loads(msg)
-        except ValueError as e:
-            print(e.args)
-            return False
-        return True
 
-    # check if json is a valid query
-    # example {"HISTORY_DEPTH":"10", "DIRECTION":"BOTH", "SEARCH_STRING":"a"}
-    def check_valid_query(self, msg):
-        dict_obj = json.loads(msg)
-        # it must have these fields.
-        if dict_obj.get('HISTORY_DEPTH') is None \
-                or dict_obj.get('SEARCH_STRING') is None \
-                or dict_obj.get('DIRECTION') is None \
-                or len(dict_obj.keys()) != 3:
-            return False
-        # history depth can be non-negative integer or 'ALL'
-        if not dict_obj['HISTORY_DEPTH'].isdigit() and not dict_obj['HISTORY_DEPTH'] == 'ALL':
-            return False
-        if dict_obj['HISTORY_DEPTH'].isdigit() and int(dict_obj['HISTORY_DEPTH']) == 0:
-            return False
-        # direction can have up, down and both values only
-        if dict_obj['DIRECTION'] != 'UP' and dict_obj['DIRECTION'] != 'DOWN' and dict_obj['DIRECTION'] != 'BOTH':
-            return False
+# client gui
+class ServerGUI(GUI):
 
-        # search_string can have any value, empty string means to not apply this filter
-        return True
+    def __init__(self, app_socket):
+        self.processor = ServerProcessor(self)
+        self.receiver = Receiver(self.processor, app_socket)
+
+        super().__init__("server", app_socket)
 
     # search button handler
     def on_search_clicked(self, msg):
@@ -229,9 +282,36 @@ class GUI:
         # if a valid json and a valid query
         if self.check_valid_json(msg) and self.check_valid_query(msg):
             # convert it to json
-            msg = self.convert_to_json(msg, 'QueryMessage')
+            msg = self.convert_to_json(msg, 'ServerQueryMessage')
         else:
+            print("Invalid Search String Crafted!")
             return
 
-        # send json message
-        self.send_message(msg)
+        # do not send msg handle it in processor
+        self.processor.push_back(msg)
+
+    # function to dispatch a sender
+    def on_send_clicked(self, msg):
+        self.message_box.config(state=DISABLED)
+        json_msg = []
+        # put sender name info to the message
+        json_msg = self.convert_to_json(msg, 'ServerMessage')
+
+        self.message_entry_box.delete(0, END)
+
+        sender_thread = threading.Thread(target=self.send_message, args=(json_msg,))
+        # to not worry about joining
+        sender_thread.setDaemon(True)
+        sender_thread.start()
+
+    # function that does sending
+    def send_message(self, json_msg):
+        self.message_box.config(state=DISABLED)
+        while True:
+            # delegate database ops to processor
+            self.processor.push_back(json_msg)
+            message = bytes(f"{json_msg}", FORMAT)
+            # Prefix each message with a 4-byte length (network byte order)
+            message = struct.pack('>I', len(message)) + message
+            self.socket.send(message)
+            break
