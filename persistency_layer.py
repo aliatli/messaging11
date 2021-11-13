@@ -1,11 +1,10 @@
 import json
-
 import pymongo
 
-
+# class that handles communication with mongodb
 class Persistency:
     """
-    {"HISTORY_DEPTH":"1", "SEARCH_STRING":"hello", "DIRECTION":"BOTH"}
+    {"HISTORY_DEPTH":"ALL", "SEARCH_STRING":"", "DIRECTION":"BOTH"}
     """
 
     def __init__(self):
@@ -65,7 +64,7 @@ class Persistency:
         # unwrap message
         original_message_body_dict = json.loads(original_message['BODY'])
         result = []
-
+        # construct individual
         skip_size = self.get_skip_size(original_message_body_dict)
         string_query = self.get_search_string_query(original_message_body_dict)
         connection_query = self.get_connection_query(original_message_body_dict, original_message)
@@ -75,7 +74,7 @@ class Persistency:
             print('The query is crafted erroneously!')
             return
 
-        # if search string is not specified
+        # execute the filter
         if string_query is None:
             posts = self.collection.find({'_id': skip_size, '$or': connection_query})
         else:

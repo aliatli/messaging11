@@ -1,9 +1,9 @@
-import struct
+import json
 import threading
 import time
 from tkinter import *
-import json
 
+import common
 from processor import ClientProcessor, ServerProcessor
 from receiver import Receiver
 
@@ -22,6 +22,43 @@ class GUI:
         # chat window which is currently hidden
         self.Window = Tk()
         self.Window.withdraw()
+        self.label_head = Label(self.Window,
+                                bg=self.bg,
+                                fg=self.fg,
+                                text=self.name,
+                                font="Helvetica 13 bold",
+                                pady=5)
+        self.line = Label(self.Window,
+                          width=450,
+                          bg="#ABB2B9")
+        self.label_bottom = Label(self.Window,
+                                  bg="#ABB2B9",
+                                  height=80)
+        self.message_entry_box = Entry(self.label_bottom,
+                                       bg=self.bg,
+                                       fg=self.fg,
+                                       font="Helvetica 13", insertbackground=self.fg)
+        self.search_button = Button(self.label_bottom,
+                                    text="Search",
+                                    font="Helvetica 10 bold",
+                                    width=20,
+                                    bg="#ABB2B9",
+                                    command=lambda: self.on_search_clicked(self.message_entry_box.get()))
+        self.send_message_button = Button(self.label_bottom,
+                                          text="Send",
+                                          font="Helvetica 10 bold",
+                                          width=20,
+                                          bg="#ABB2B9",
+                                          command=lambda: self.on_send_clicked(self.message_entry_box.get()))
+        self.message_box = Text(self.Window,
+                                width=20,
+                                height=2,
+                                bg=self.bg,
+                                fg=self.fg,
+                                font="Helvetica 14",
+                                padx=5,
+                                pady=5)
+
         self.start_loop(self.name)
 
     # this needs to be the last call from main, otherwise wont show
@@ -41,46 +78,19 @@ class GUI:
         self.Window.configure(width=470,
                               height=550,
                               bg=self.bg)
-        self.label_head = Label(self.Window,
-                                bg=self.bg,
-                                fg=self.fg,
-                                text=self.name,
-                                font="Helvetica 13 bold",
-                                pady=5)
 
         self.label_head.place(relwidth=1)
-        self.line = Label(self.Window,
-                          width=450,
-                          bg="#ABB2B9")
 
         self.line.place(relwidth=1,
                         rely=0.07,
                         relheight=0.012)
 
-        self.message_box = Text(self.Window,
-                                width=20,
-                                height=2,
-                                bg=self.bg,
-                                fg=self.fg,
-                                font="Helvetica 14",
-                                padx=5,
-                                pady=5)
-
         self.message_box.place(relheight=0.745,
                                relwidth=1,
                                rely=0.08)
 
-        self.label_bottom = Label(self.Window,
-                                  bg="#ABB2B9",
-                                  height=80)
-
         self.label_bottom.place(relwidth=1,
                                 rely=0.825)
-
-        self.message_entry_box = Entry(self.label_bottom,
-                                       bg=self.bg,
-                                       fg=self.fg,
-                                       font="Helvetica 13", insertbackground=self.fg)
 
         # place the given widget
         # into the gui window
@@ -90,22 +100,6 @@ class GUI:
                                      relx=0.011)
 
         self.message_entry_box.focus()
-
-        # create a Send Button
-        self.send_message_button = Button(self.label_bottom,
-                                          text="Send",
-                                          font="Helvetica 10 bold",
-                                          width=20,
-                                          bg="#ABB2B9",
-                                          command=lambda: self.on_send_clicked(self.message_entry_box.get()))
-
-        # create a Send Button
-        self.search_button = Button(self.label_bottom,
-                                    text="Search",
-                                    font="Helvetica 10 bold",
-                                    width=20,
-                                    bg="#ABB2B9",
-                                    command=lambda: self.on_search_clicked(self.message_entry_box.get()))
 
         self.send_message_button.place(relx=0.505,
                                        rely=0.008,
@@ -156,59 +150,27 @@ class GUI:
             self.message_box.config(state=DISABLED)
             self.message_box.see(END)
 
-    # convert text message to dict with meta-data
-    def convert_to_dict(self, message, type):
-        # python native representation
-        dictionary_representation = {'TYPE': type,
-                                     'EPOCH_TIME': int(time.time()),
-                                     'SENDER': self.socket.getsockname(),
-                                     'RECEIVER': self.socket.getpeername(),
-                                     'BODY': message}
-        return dictionary_representation
-
-    # convert text message to json with meta-data
-    def convert_to_json(self, message, type):
-        # convert it to json object
-        return json.dumps(self.convert_to_dict(message, type), ensure_ascii=False)
-
-    # check if query string is valid json
-    def check_valid_json(self, msg):
-        try:
-            json.loads(msg)
-        except ValueError as e:
-            print(e.args)
-            return False
-        return True
-
-    # check if json is a valid query
-    # example {"HISTORY_DEPTH":"10", "DIRECTION":"BOTH", "SEARCH_STRING":"a"}
-    def check_valid_query(self, msg):
-        dict_obj = json.loads(msg)
-
-        # it must have these fields.
-        if dict_obj.get('HISTORY_DEPTH') is None \
-                or dict_obj.get('SEARCH_STRING') is None \
-                or dict_obj.get('DIRECTION') is None \
-                or len(dict_obj.keys()) != 3:
-            return False
-
-        # history depth can be non-negative integer or 'ALL'
-        if not dict_obj['HISTORY_DEPTH'].isdigit() and not dict_obj['HISTORY_DEPTH'] == 'ALL':
-            return False
-        if dict_obj['HISTORY_DEPTH'].isdigit() and int(dict_obj['HISTORY_DEPTH']) == 0:
-            return False
-
-        # direction can have up, down and both values only
-        if dict_obj['DIRECTION'] != 'UP' and dict_obj['DIRECTION'] != 'DOWN' and dict_obj['DIRECTION'] != 'BOTH':
-            return False
-
-        # search_string can have any value, empty string means to not apply this filter
-        return True
-
     # show search result on a different window
-    def pop_search_result(self, results):
+    def show_search_result(self, results):
+        now = int(time.time())
+        filename = self.name + str(now) + '.txt'
+        fullpath = []
+        # write results to file
+        with open(filename, 'w') as json_file:
+            fullpath = json_file.name
+            json.dump(results, json_file,
+                      indent=4,
+                      separators=(',', ': '))
+
+        # insert messages to text box
+        self.message_box.config(state=NORMAL)
+        self.message_box.insert(END, "Search result is written to file: " + fullpath)
+        self.message_box.config(state=DISABLED)
+
+        # write message body to terminal
         for r in results:
-            print(str(r['BODY']))
+            if r.get('BODY'):
+                print(str(r['BODY']))
 
     # search button handler
     def on_search_clicked(self, msg):
@@ -218,16 +180,6 @@ class GUI:
     def on_send_clicked(self, msg):
         pass
 
-    # function that does sending
-    def send_message(self, json_msg):
-        self.message_box.config(state=DISABLED)
-        while True:
-            # encode json with utf-8
-            message = bytes(f"{json_msg}", FORMAT)
-            # Prefix each message with a 4-byte length (network byte order)
-            message = struct.pack('>I', len(message)) + message
-            self.socket.send(message)
-            break
 
 # client gui
 class ClientGUI(GUI):
@@ -242,25 +194,25 @@ class ClientGUI(GUI):
         self.message_box.config(state=DISABLED)
         msg = msg.upper()
         # if a valid json and a valid query
-        if self.check_valid_json(msg) and self.check_valid_query(msg):
+        if common.check_valid_json(msg) and common.check_valid_query(msg):
             # convert it to json
-            msg = self.convert_to_json(msg, 'ClientQueryMessage')
+            msg = common.convert_to_json(self.socket, msg, 'ClientQueryMessage')
         else:
             return
 
         # send json message
-        self.send_message(msg)
+        common.send_message(self.socket, msg)
 
     # function to dispatch a sender
     def on_send_clicked(self, msg):
         self.message_box.config(state=DISABLED)
         # put sender name info to the message
-        json_msg = self.convert_to_json(msg, 'ClientMessage')
+        json_msg = common.convert_to_json(self.socket, msg, 'ClientMessage')
 
         # clear the text entry
         self.message_entry_box.delete(0, END)
 
-        sender_thread = threading.Thread(target=self.send_message, args=(json_msg,))
+        sender_thread = threading.Thread(target=common.send_message, args=(self.socket, json_msg))
         # to not worry about joining
         sender_thread.setDaemon(True)
         sender_thread.start()
@@ -280,9 +232,9 @@ class ServerGUI(GUI):
         self.message_box.config(state=DISABLED)
         msg = msg.upper()
         # if a valid json and a valid query
-        if self.check_valid_json(msg) and self.check_valid_query(msg):
+        if common.check_valid_json(msg) and common.check_valid_query(msg):
             # convert it to json
-            msg = self.convert_to_dict(msg, 'ServerQueryMessage')
+            msg = common.convert_to_dict(self.socket, msg, 'ServerQueryMessage')
         else:
             print("Invalid Search String Crafted!")
             return
@@ -293,15 +245,14 @@ class ServerGUI(GUI):
     # function to dispatch a sender
     def on_send_clicked(self, msg):
         self.message_box.config(state=DISABLED)
-        json_msg = []
         # put sender name info to the message
-        json_msg = self.convert_to_json(msg, 'ServerMessage')
-        dict_msg = self.convert_to_dict(msg, 'ServerMessage')
+        json_msg = common.convert_to_json(self.socket, msg, 'ServerMessage')
+        dict_msg = common.convert_to_dict(self.socket, msg, 'ServerMessage')
         # delegate database ops to processor
         self.processor.push_back(dict_msg)
         self.message_entry_box.delete(0, END)
 
-        sender_thread = threading.Thread(target=self.send_message, args=(json_msg,))
+        sender_thread = threading.Thread(target=common.send_message, args=(self.socket, json_msg))
         # to not worry about joining
         sender_thread.setDaemon(True)
         sender_thread.start()

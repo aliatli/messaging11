@@ -12,7 +12,7 @@ class Receiver:
         rcv = threading.Thread(target=self.receive)
         rcv.start()
 
-    def receive_n(self, sock, n):
+    def receive_nbytes(self, sock, n):
         # Helper function to recv n bytes or return None if EOF is hit
         data = bytearray()
         while len(data) < n:
@@ -22,28 +22,30 @@ class Receiver:
             data.extend(packet)
         return data
 
-    def recv_msg(self, sock):
+    def receive_message(self, sock):
         # Read message length and unpack it into an integer
-        raw_msglen = self.receive_n(sock, 4)
-        if not raw_msglen:
+        raw_message_len = self.receive_nbytes(sock, 4)
+        if not raw_message_len:
             return None
-        msglen = struct.unpack('>I', raw_msglen)[0]
-        if 0 == msglen:
+        message_len = struct.unpack('>I', raw_message_len)[0]
+        if 0 == message_len:
             return None
         # Read the message data
-        return self.receive_n(sock, msglen)
+        return self.receive_nbytes(sock, message_len)
 
     # function to receive messages
     def receive(self):
         while True:
             try:
-                message = self.recv_msg(self.socket).decode(self.encode_format)
+                # waits all the payload is received
+                message = self.receive_message(self.socket).decode(self.encode_format)
+                # from json string to native dictionary
                 message = json.loads(message)
                 self.processor.push_back(message)
 
             except Exception as e:
                 # an error will be printed on the command line or console if there's an error
                 print(e.args)
-                print("exception occured, closing connection...")
+                print("exception occurred, closing connection...")
                 self.socket.close()
                 break

@@ -2,6 +2,7 @@ import queue
 import threading
 from enum import Enum
 
+import common
 from persistency_layer import Persistency
 
 
@@ -77,7 +78,7 @@ class ClientProcessor(Processor):
             # this is received only by the client
             self.gui.add_received_message(message)
         elif message_type is MessageType.QueryResult:
-            self.gui.pop_search_result(message)
+            self.gui.show_search_result(message['BODY'])
         else:
             pass
 
@@ -97,14 +98,23 @@ class ServerProcessor(Processor):
             self.gui.add_received_message(message)
             # save it to the db
             self.persistency.save_message(message)
-
         elif message_type is MessageType.ServerMessage:
             # save own message to db
             self.persistency.save_message(message)
-
         elif message_type is MessageType.ServerQueryMessage:
             # ask persistency to execute query
             result = self.persistency.filter_message(message)
-            self.gui.pop_search_result(result)
+            self.gui.show_search_result(result)
+        elif message_type is MessageType.ClientQueryMessage:
+            # message body bears the query
+            message_body = message['BODY']
+            # check if format is ok
+            if common.check_valid_json(message_body) and common.check_valid_query(message_body):
+                results = self.persistency.filter_message(message)
+                json_results = common.convert_to_json(self.gui.socket, results, 'QueryResult')
+                # then send back to client
+                common.send_message(self.gui.socket, json_results)
+            else:
+                print('Received query message is erroneously crafted!')
         else:
             pass
