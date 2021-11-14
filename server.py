@@ -34,6 +34,12 @@ def run(conn):
 
 
 if __name__ == "__main__":
-    server_ip = sys.argv[1]
-    server_port = int(sys.argv[2])
-    start_chat((server_ip, server_port))
+    if len(sys.argv) == 3:
+        server_ip = sys.argv[1]
+        server_port = int(sys.argv[2])
+        start_chat((server_ip, server_port))
+    elif len(sys.argv) == 2:
+        server_port = int(sys.argv[1])
+        start_chat(('0.0.0.0', server_port))
+    else:
+        print('Usage: python3 server.py <serverip>|<> <serverport>')
