@@ -1,6 +1,8 @@
 # Instructions
 ## Installation
+
 Following instructions have been tested on Ubuntu 18.04.
+
 
 
 - sudo apt install python3 &&
@@ -9,6 +11,7 @@ Following instructions have been tested on Ubuntu 18.04.
 - pip3 install pymongo[srv]
 
 The persistency layer uses mongodb database which runs on mongodb atlas cluster with approximately 500MB of free space, therefore, no additional steps should not be needed.
+
 ## Execution
 You can run the client and server with:
  
