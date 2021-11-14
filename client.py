@@ -20,6 +20,9 @@ def run(server_ip, server_port):
 
 
 if __name__ == "__main__":
-    server_ip = sys.argv[1]
-    server_port = int(sys.argv[2])
-    run(server_ip, server_port)
+    if len(sys.argv) == 3:
+        server_ip = sys.argv[1]
+        server_port = int(sys.argv[2])
+        run(server_ip, server_port)
+    else:
+        print('Usage: python3 client.py <serverip> <serverport>')
