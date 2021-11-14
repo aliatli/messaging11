@@ -28,9 +28,9 @@ You can run the client and server with:
 ## Query Format
 The format of the query is as follows:
 
-    {"HISTORY_DEPTH":["ALL" | "{non-negative integer}"], "SEARCH_STRING":[""| "{any UTF-8 string}"], "DIRECTION":["BOTH"|"UP"|"DOWN"]}
-- Note: {non-negative integer} and {any UTF-8 string} must be enclosed with quotation marks(" ").
-
+    {"HISTORY_DEPTH":["ALL" | "{positive integer}"], "SEARCH_STRING":[""| "{any UTF-8 string}"], "DIRECTION":["BOTH"|"UP"|"DOWN"]}
+- Note: {positive integer} and {any UTF-8 string} must be enclosed with quotation marks(" ").
+- Note: you can use double escape (\ \ \") for quotes.
 
 In order to fetch all messages that are either received or sent, one can use the following query:
     
